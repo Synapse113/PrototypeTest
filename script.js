@@ -21,11 +21,10 @@ var levels;
 var players = [];
 var enemys = [];
 var grounds = [];
-var grasses = [];
 var lavas = [];
 var ports = [];
 
-var objects = [players, grounds, grasses, enemys];
+var objects = [players, grounds, enemys];
 
 // used to detect collision betwen two objects
 function collide(obj1, obj2) {
@@ -54,6 +53,67 @@ const keys = {
     }
 }
 
+// FX
+var Fx = function(type, x, y, direction, line) {
+    this.type = type;
+    this.x = x;
+    this.y = y;
+    this.index = 0;
+    this.dead = false;
+    this.dustImg1 = new Image();
+    this.dustImg1.src = 'assets/dustFX.png';
+    this.imgWidth = 0;
+    this.imgHeight = 0;
+    this.index = 0;
+    this.line = line;
+    this.scaledSize = 3;
+    this.direction = direction;
+};
+Fx.prototype.draw = function() {
+    switch(this.type) {
+        case 'horizontalDust':
+            this.imgWidth = 7;
+            this.imgHeight = 7;
+            c.save();
+            c.translate(this.x, this.y);
+            c.scale(this.direction, 1)
+            c.drawImage(this.dustImg1, this.index * this.imgWidth, this.line * this.imgHeight, this.imgWidth, this.imgHeight, 0, 0, this.imgWidth * this.scaledSize, this.imgHeight * this.scaledSize);
+            c.restore();
+
+            if (frameCount % 4 === 0) {
+                this.index = (this.index + 1);
+            }
+            this.x += 2 * this.direction;
+            this.y -= 1;
+
+            if (this.index === 5) {
+                this.dead = true;
+            }
+            break;
+        case 'landingDust':
+            this.imgWidth = 7;
+            this.imgHeight = 6;
+            c.save();
+            c.translate(this.x, this.y);
+            c.scale(-this.direction, 1)
+            c.drawImage(this.dustImg1, this.index * this.imgWidth, this.line * this.imgHeight, this.imgWidth, this.imgHeight, 0, 0, this.imgWidth * this.scaledSize, this.imgHeight * this.scaledSize);
+            c.restore();
+
+            if (frameCount % 4 === 0) {
+                this.index = (this.index + 1);
+            }
+            this.x += 1 * this.direction;
+            this.y -= 2;
+
+            if (this.index === 5) {
+                this.dead = true;
+            }
+            break;
+    }
+};
+
+var effects = [];
+
 // ************************* OBJECT CLASSES *************************
 
 // player
@@ -64,71 +124,142 @@ var Player = function(x, y, width, height) {
     this.height = height; // height
     this.xVel = 0; // x velocity
     this.yVel = 0; // y velocity
-    this.acceleration = 0.5; // x acceleration
+    this.acceleration = 0.7; // x acceleration
     this.friction = 0.95;
     this.maxSpeed = 8; // maximum x speed
     this.gravity = 1; // gravity
-    this.jumpHeight = 16.5; // max jump height (higher number, the higher the player can jump)
+    this.jumpHeight = 17.5; // max jump height (higher number, the higher the player can jump)
     this.canJump = false; // determines whether the player can jump at a certain instance
     this.dead = false; // determines whether the player is dead or not
     this.playerImg = new Image(); // create new image instance
-    this.playerImg.src = 'assets/Player.png';  // assign the source  (https://i.ibb.co/HCnbKHC/rabbit.png)
+    this.playerImg.src = 'assets/playerSheet.png';  // assign the source  (https://i.ibb.co/HCnbKHC/rabbit.png)
     this.currentSprite = this.playerImg; // create a current sprite that can be changed
     this.index = 4; // sprite loop index 
-    this.line = 1; // y crop on the sprite
+    this.line = 0; // y crop on the sprite
     this.slide = 7; // wall slide index
     this.wallJump = true; // used in wall jump, determines whether player can, in fact, wall jump, or not.
     this.kickBack = 4; // used in wall jumping, how far the player can kick off of the wall
     this.runLength = 8; // length of run loop for sprite
     this.loopSpeed = 4; // speed images loop at (the larger the number, the slower the loop)
-    this.direction = 1; // direction player is facing (1 || -1)
-    this.imgWidth = 32; // image width (used for crop)
-    this.imgHeight = 38; // image height (used for crop)
+    this.direction = -1; // direction player is facing (1 || -1 ONLY)
+    this.imgWidth = 35; // image width (used for crop)
+    this.imgHeight = 40; // image height (used for crop)
     this.scaledSize = 3; // used to rescale the sprite
     this.attacking = false; // attacking or not
-    this.longJumpTime = 0;
+    this.longJumpTime = 0;  
     this.animate = false; // whether the program loops through sprites or not
-
+    this.changeDirection = 0;
+    this.changeTime = 3;
+    this.changeBool = false;
 };
 Player.prototype.update = function() {
     if (!this.dead) {
+        // if (this.changeBool) {
+        //     this.changeDirection ++;
+        // }
+
+        // if (this.changeDirection < this.changeTime) {
+        //     this.index = 9;
+        //     this.line = 1;
+        //     this.loopSpeed = 0;
+        // }else if (this.changeDirection >= this.changeTime) {
+        //     this.direction *= -1;
+        //     this.changeBool = false;
+        //     this.changeDirection = 0;
+        // }
+
         // move along the x if key events are true
         if (keys.left.pressed) {
+            // if (this.direction === 1) {
+            //     this.changeBool = true;
+            // }else {
+            //     this.index = 9;
+            // }
+
+            this.direction = -1;
+            
+            if (!this.wallJump && this.xVel <= 0 && !this.changeBool) {
+                this.runLength = 8;
+
+                // remove any glitching between sprite line transition (some animations are longer than others)
+                if (this.index > 8 && !this.changeBool) {
+                    this.index = 0;
+                }
+                if (this.canJump) {
+                    this.line = 1;
+                    // draw dust particles
+                    if (frameCount % 30 === 0) {
+                        effects.push(new Fx('horizontalDust', this.x + this.imgWidth / 2, this.y + this.height - 15, -1, 0));
+                    }else if (frameCount % 30 === 15) {
+                        effects.push(new Fx('horizontalDust', this.x + this.imgWidth, this.y + this.height - 15, 1, 1));
+                    }
+                }
+            }
+
             if (this.xVel > -this.maxSpeed) {
                 this.xVel -= this.acceleration;
             }
-            this.direction = -1;
-            this.line = 0;
-        }else if (keys.right.pressed) {
+        }
+        if (keys.right.pressed) {
+            // if (this.direction === -1) {
+            //     this.changeBool = true;
+            // }
+            this.direction = 1;
+
+            // remove any glitching between sprite line transition (some animations are longer than others)
+            if (!this.wallJump && !this.changeBool) {
+                this.runLength = 8;
+                
+                // remove any glitching between sprite line transition (some animations are longer than others)
+                if (this.index > 8 && !this.changeBool) {
+                    this.index = 0;
+                }
+                if (this.canJump) {
+                    this.line = 1;
+                    // draw dust particles
+                    if (frameCount % 30 === 0) {
+                        effects.push(new Fx('horizontalDust', this.x + this.imgWidth / 2, this.y + this.height - 15, -1, 0));
+                    }else if (frameCount % 30 === 15) {
+                        effects.push(new Fx('horizontalDust', this.x + this.imgWidth, this.y + this.height - 15, 1, 1));
+                    }
+                }
+            }
+
             if (this.xVel < this.maxSpeed) {
                 this.xVel += this.acceleration
             }
-            this.direction = 1;
-            this.line = 0;
-        }else { 
+        }
+        if (!keys.left.pressed && !keys.right.pressed) { 
             this.xVel *= 0.7;
             if (this.xVel > -0.0005 && this.xVel < 0.0005) {
                 this.xVel = 0;
             }
-            this.line = 1;
+            
+            this.runLength = 18;
+            this.line = 0;
         }
 
         // jump
         if (keys.up.pressed && this.canJump ) {
+            // remove any glitching between sprite line transition (some animations are longer than others)
+            if (this.index > 8) {
+                this.index = 0;
+            }
+            
             this.index = 1;
             this.yVel = -this.jumpHeight;
             this.canJump = false;
         }
 
         // change sprites when jumping/falling
-        if (!this.canJump && !this.wallJump ) {
+        if (!this.canJump && !this.wallJump) {
             if (this.yVel > -16 && this.yVel < -15) {
                 this.index = 1;
-            }else if (this.yVel > -12 && this.yVel <= -10) { 
+            }else if (this.yVel > -12 && this.yVel <= -7) { 
                 this.index = 2;
-            }else if (this.yVel > -10 && this.yVel <= -8) { 
+            }else if (this.yVel > -7 && this.yVel <= -4) { 
                 this.index = 3;
-            }else if (this.yVel > -2 && this.yVel <= 2) { 
+            }else if (this.yVel > -3 && this.yVel <= 2) { 
                 this.index = 4;
             }else if (this.yVel > 2 && this.yVel <= 4) { 
                 this.index = 5;
@@ -137,28 +268,38 @@ Player.prototype.update = function() {
             }else if (this.yVel > 8 && this.yVel <= 15) { 
                 this.index = 7;
             }
-        
-            // // clamp test
-            // if (frameCount % 10 === 0) {
-            //     this.index = Math.floor(Math.min(Math.max((this.yVel * -1) / 1.5, 0), 8));
-            // 
-            if (this.xVel === 0) {
+
+            // jump conditional (jumping forward .vs jumping while idle (or very little movement))
+            if (this.xVel < 2 && this.xVel > -2) {
                 this.line = 2;
+                if (this.index >= 7) {
+                    this.index = 7;
+                }
             }else {
                 this.line = 3;
+                if (this.index >= 7) {
+                    this.index = 7;
+                }
             }
         }else {
             // animate sprites
-            if (frameCount % this.loopSpeed === 0) {
-                this.index = (this.index + 1) % this.runLength;
+            if (this.yVel >= 0) {
+                if (frameCount % this.loopSpeed === 0) {
+                    this.index = (this.index + 1) % this.runLength;
+                }
             }
         }
         
         if (this.yVel > 1 && this.canJump) {
-            this.line = 4;
+            this.line = 2;
             this.loopSpeed = 2;
+            if (this.index >= 7) {
+                this.index = 7;
+            }
         }else {
             this.loopSpeed = 4;
+            this.runLength = 18; 
+
         }
 
         this.x += this.xVel; // update x by x velocity
@@ -172,116 +313,136 @@ Player.prototype.update = function() {
     if (this.longJumpTime > 0) {
         this.longJumpTime --;
     }else {
-        this.kickBack = 4;
+        this.kickBack = 6;
     }
 
-    if (this.longJumpTime > 0 && this.direction === 1 && this.xVel > 0 && keys.up.pressed) {
-        this.kickBack = 10;
-        this.xVel = this.kickBack;
-        this.yVel = -this.jumpHeight + 2;
-        this.longJumpTime = 0;
-        this.kickBack = 4;
-    }else if (this.longJumpTime > 0 && this.direction === -1 && this.xVel < 0 && keys.up.pressed) {
-        this.kickBack = -10;
-        this.xVel = this.kickBack;
-        this.yVel = -this.jumpHeight + 2;
-        this.longJumpTime = 0;
+    if (this.longJumpTime > 0 && this.direction === 1 && this.xVel > 0) {
+        this.wallJump = false;
+        if (keys.up.pressed) {
+            this.kickBack = 10;
+            this.xVel = this.kickBack;
+            this.yVel = -this.jumpHeight + 2;
+            this.longJumpTime = 0;
+            this.kickBack = 4;
+        }
+    }else if (this.longJumpTime > 0 && this.direction === -1 && this.xVel < 0) {
+        this.wallJump = false;
+        if (keys.up.pressed) {
+            this.kickBack = -10;
+            this.xVel = this.kickBack;
+            this.yVel = -this.jumpHeight + 2;
+            this.longJumpTime = 0;
+        }
     }
 
     if (this.xVel > this.maxSpeed || this.xVel < -this.maxSpeed) {
         this.xVel *= this.friction;
     }
 
-    console.log(this.xVel)
+    if (this.yVel > 1) {
+        this.canJump = false;
+    }
 };
 Player.prototype.collide = function(obj, xVel, yVel) {
     for (var i = 0; i < obj.length; i ++) {
         if (collide(this, obj[i]) && this.dead === false) {
             if (xVel < 0) {
-                // this.kickBack = 4;
-                this.longJumpTime = 10;
+                this.longJumpTime = 9;
                 this.xVel = 0;
                 this.x = obj[i].x + obj[i].width;
-                
+
                 if (keys.up.pressed && this.wallJump) {
-                    this.line = 5;   
+                    this.index = 0;
+                    this.line = 4;   
                     this.yVel = -this.jumpHeight + 2;
                     this.xVel = this.kickBack * -this.direction;
                     this.wallJump = false;
                 }
-                if (!keys.up.pressed) {   
+                if (!keys.up.pressed) { 
+                    // remove any glitching between sprite line transition (some animations are longer than others)
+                    if (this.index > 6) {
+                        this.index = 0;
+                    }  
+                    
                     this.wallJump = true;
                     if (this.xVel >= 0 && !this.canJump) {
-                        this.runLength = 7;
-                        this.line = 5;
-                        if (frameCount % this.loopSpeed === 0) {
-                            this.index = (this.index + 1) % this.runLength;
-                        }
-                    }else this.canJump = false; this.runLength = 8;
+                        this.line = 4;
+                        this.runLength = 6;
+                        
+                    }else this.canJump = false; 
 
-                    this.yVel = 2;
+                    this.yVel = 2.5;
                 }
             }
             if (xVel > 0) {
-                // this.kickBack = 4;
                 this.longJumpTime = 10;
                 this.xVel = 0;
                 this.x = obj[i].x - this.width;
-                
-                if (keys.up.pressed && this.wallJump) {   
-                    this.line = 5;   
+
+                if (keys.up.pressed && this.wallJump) {  
+                    this.index = 0; 
+                    this.line = 4;   
                     this.yVel = -this.jumpHeight + 2;
                     this.xVel = this.kickBack * -this.direction;
                     this.wallJump = false;
                 }
-                if (!keys.up.pressed) {   
+                if (!keys.up.pressed) {  
+                    // remove any glitching between sprite line transition (some animations are longer than others)
+                    if (this.index > 6) {
+                        this.index = 0;
+                    } 
+
                     this.wallJump = true;
                     if (this.xVel >= 0 && !this.canJump) {
-                        this.line = 5;
-                        this.runLength = 7;
-                        if (frameCount % this.loopSpeed === 0) {
-                            this.index = (this.index + 1) % this.runLength;
-                        }
-                    }else this.canJump = false; this.runLength = 8;
+                        this.line = 4;
+                        this.runLength = 6;
+                    }else this.canJump = false;
 
-                    this.yVel = 2;
+                    this.yVel = 2.5;
                 }
-               
             }
+
             if (yVel < 0) {
                 this.yVel = 0;
                 this.canJump = false;
+                this.wallJump = false;
                 this.y = obj[i].y + obj[i].height;
-            }else {
-                this.canJump = false;
             }
+            
             if (yVel > 0) {
-                // landing pose when player makes contact with ground.
-                if (this.yVel > 0.1 && this.line === 2) {
-                    this.index = 0;
-                    this.line = 2;
-                }
                 this.longJumpTime = 0;
                 this.kickBack = 4;
                 this.yVel = 0;
-                this.canJump = true;
+                if (!this.canJump) {
+                    if (!this.wallJump) {
+                        effects.push(new Fx('landingDust', this.x + this.imgWidth + 5, this.y + this.height - 21, 1, 2));
+                        effects.push(new Fx('landingDust', this.x - this.imgWidth / 2 - 3, this.y + this.height - 20, -1, 2));
+                        effects.push(new Fx('landingDust', this.x + this.imgWidth, this.y + this.height - 20, 1, 2));
+                        effects.push(new Fx('landingDust', this.x - this.imgWidth / 2, this.y + this.height - 25, -1, 2));
+                        effects.push(new Fx('landingDust', this.x + this.imgWidth - 10, this.y + this.height - 20, 1, 3));
+                        effects.push(new Fx('landingDust', this.x - this.imgWidth / 2, this.y + this.height - 24, -1, 2));
+                        effects.push(new Fx('landingDust', this.x + this.imgWidth + 4, this.y + this.height - 22, 1, 3));
+                    }
+                    this.canJump = true;
+                }
                 this.wallJump = false;
                 this.y = obj[i].y - this.height;
-                
+
+                // if (this.y === obj[i].y - this.height && obj[i].type === 1) {
+                //     obj[i].type = 5;
+                // }else {
+                //     obj[i].type = 1;
+                // }
+                obj[i].stoodOn = true;
             }
-        }
+        }else obj[i].stoodOn = false;
     }
 };
 Player.prototype.draw = function() {
-    // hitboxes
-    // c.fillStyle = 'red';
-    // c.fillRect(this.x, this.y, this.width, this.height);
-    // c.fillStyle = 'green';
-    // c.fillRect(this.x, this.y + blockSize / 2, this.width, blockSize / 2);
     c.save();
-    c.translate(this.x + this.imgWidth / 2 - pxSize, this.y - pxSize - (this.imgHeight * this.scaledSize) / 1.85);
-    c.scale(-this.direction, 1)
-    c.drawImage(this.currentSprite, this.index * this.imgWidth, this.line * this.imgHeight, this.imgWidth, this.imgHeight, -(this.imgWidth * this.scaledSize) / 2, blockSize, this.imgWidth * this.scaledSize, this.imgHeight * this.scaledSize);
+    c.translate(this.x + this.imgWidth / 2 - pxSize, this.y - pxSize - (this.imgHeight * this.scaledSize) / 1.86);
+    c.scale(this.direction, 1)
+    c.drawImage(this.currentSprite, this.index * this.imgWidth, this.line * this.imgHeight, this.imgWidth, this.imgHeight, -(this.imgWidth * this.scaledSize) / 2, blockSize + 4, this.imgWidth * this.scaledSize, this.imgHeight * this.scaledSize);
     c.restore();
 };
 
@@ -304,17 +465,160 @@ var Ground = function(x, y, width, height, type) {
     this.height = height;
     this.type = type;
     this.image = new Image();
-    this.image.src = 'assets/tileset2.png';
-    this.index = type; // tile index
+    this.image.src = 'assets/tilemap.png';
+    this.column = 0; // column index
+    this.row = 0; // row index
+    this.spacing = 0; // tile separation
     this.scaledSize = 3;
+    this.tileSize = 16;
+    this.stoodOn = false;
+    this.reformTime = 0;
 };  
 Ground.prototype.draw = function() {
     c.save();
     c.translate(this.x - this.collisionOffset / 2, this.y)
     c.scale(this.scaledSize, this.scaledSize);
 
+    // select tile image based off of type
+    switch (this.type) {
+        case 0: 
+            this.column = 0;
+            this.row = 0;
+            break;
+        case 1: 
+            this.column = 1;
+            this.row = 0;
+            break;
+        case 2: 
+            this.column = 2;
+            this.row = 0;
+            break;
+        case 3: 
+            this.column = 0;
+            this.row = 1;       
+            break;
+        case 4: 
+            this.column = 1;
+            this.row = 1;
+            break;
+        case 5: 
+            this.column = 2;
+            this.row = 1;
+            break;
+        case 6: 
+            this.column = 0;
+            this.row = 2;
+            break;
+        case 7: 
+            this.column = 1;
+            this.row = 2;
+            break;
+        case 8: 
+            this.column = 2;
+            this.row = 2;
+            break;
+        case 9: 
+            this.column = 3;
+            this.row = 3;
+            break;
+        case 10: 
+            this.column = 3;
+            this.row = 2;
+            break;
+        case 11: 
+            this.column = 3;
+            this.row = 0;
+            break;
+        case 12: 
+            this.column = 1;
+            this.row = 3;
+            break;
+        case 13: 
+            this.column = 2;
+            this.row = 3;
+            break;
+        case 14: 
+            this.column = 0;
+            this.row = 3;
+            break;
+        case 15: 
+            this.column = 3;
+            this.row = 1;
+            break;
+        case 16: 
+            this.column = 4;
+            this.row = 2;
+            break;
+        case 'left_corner': 
+            this.column = 4;
+            this.row = 1;
+            break;
+        case 'right_corner': 
+            this.column = 4;
+            this.row = 0;
+            break;
+        case 'mid_center_corner': 
+            this.column = 4;
+            this.row = 2;
+            break;
+        case 'lower_right_corner': 
+            this.column = 3;
+            this.row = 4;
+            break;
+        case 'lower_left_corner': 
+            this.column = 2;
+            this.row = 4;
+            break;
+        case 'bottom_double_corner': 
+            this.column = 5;
+            this.row = 0;
+            break;
+    }
+
     // tile
-    c.drawImage(this.image, this.index * 16, 0, 16, 16, 0, 0, 16, 16);
+    c.drawImage(this.image, this.column * (this.tileSize + this.spacing), this.row * (this.tileSize + this.spacing), 16, 16, 0, 0, 16, 16);
+
+    // draw upper grass tiles
+    if (this.type === 1 || this.type === 12 || this.type === 16) {
+        this.column = 5;
+        this.row = 1;
+        c.drawImage(this.image, this.column * (this.tileSize + this.spacing), this.row * (this.tileSize + this.spacing), 16, 16, 0, -16, 16, 16);
+    }else if (this.type === 0 || this.type === 14) {
+        this.column = 5;
+        this.row = 2;
+        c.drawImage(this.image, this.column * (this.tileSize + this.spacing), this.row * (this.tileSize + this.spacing), 16, 16, 0, -16, 16, 16);
+    }else if (this.type === 2 || this.type === 13) {
+        this.column = 5;
+        this.row = 3;
+        c.drawImage(this.image, this.column * (this.tileSize + this.spacing), this.row * (this.tileSize + this.spacing), 16, 16, 0, -16, 16, 16);
+    }else if (this.type === 2) {
+        this.column = 5;
+        this.row = 3;
+        c.drawImage(this.image, this.column * (this.tileSize + this.spacing), this.row * (this.tileSize + this.spacing), 16, 16, 0, -16, 16, 16);
+    }else if (this.type === 15) {
+        this.column = 5;
+        this.row = 4;
+        c.drawImage(this.image, this.column * (this.tileSize + this.spacing), this.row * (this.tileSize + this.spacing), 16, 16, 0, -16, 16, 16);
+    }
+
+    // add effects when the player stands on top of a grass covered block
+
+    // if (this.stoodOn) {
+    //     if (this.reformTime > 0) {
+    //         this.reformTime = 0;
+    //     }
+    //     this.reformTime ++;
+    // }
+    // if (this.reformTime > 0) {
+    //     if (frameCount % 3 === 0 && this.type < 16) {
+    //         this.type = (this.type + 1);
+    //     }
+    // }else if (this.type === 1 && !this.stoodOn) {
+    //     if (frameCount % 3 === 0 && this.type > 1) {
+    //         this.type = (this.type - 1);
+    //     }
+    // }
+
 
     c.restore();
 };
@@ -323,35 +627,6 @@ grounds.add = function(x, y, w, h, t) {
     this.push(new Ground(x, y, w, h, t));
 };
 grounds.create = function() {
-    for (var i = 0; i < this.length; i ++) {
-        this[i].draw();
-    }
-};
-
-// grass
-var Grass = function(x, y, width, height, type) {
-    this.x = x;
-    this.y = y;
-    this.width = width;
-    this.height = height;
-    this.type = type;
-    this.image = new Image();
-    this.image.src = 'assets/tileset2.png';
-    this.index = type; // tile index
-    this.scaledSize = 3;
-};  
-Grass.prototype.draw = function() {
-    c.save();
-    c.translate(this.x, this.y)
-    c.scale(Math.floor(this.scaledSize), Math.floor(this.scaledSize));
-    c.drawImage(this.image, this.index * 16, 0, 16, 16, 0, 0, 15, 15);
-    c.restore();
-};
-
-grasses.add = function(x, y, w, h, t) {
-    this.push(new Grass(x, y, w, h, t));
-};
-grasses.create = function() {
     for (var i = 0; i < this.length; i ++) {
         this[i].draw();
     }
@@ -473,49 +748,49 @@ enemys.create = function() {
 levels = [
     [
         "..........................................................................................",
-        "...................................................-......................................",
-        "...................................................-......................................",
-        ".-.......-......-------------------...---....--....-......................................",
-        ".-.......-.......----------------.........................................................",
-        ".-.......-...............................................-................................",
-        ".-.......-...............................................-................................",
-        ".-.......-...............................................-................................",
-        ".-.......-...............................................-................................",
-        ".-.......-................................................................................",
-        ".-.......-................................................................................",
-        ".-.......-................................................................................",
-        ".-.......-...................................................-............................",
-        ".-.......-...................................................-............................",
-        ".-.......-...................................................-............................",
-        ".-.......-...................................................-............................",
-        ".-.......-................................................................................",
-        ".-.......-......................................................-.........................",
-        ".-.......-......................................................-.........................",
-        ".-.......-......................................................-.........................",
-        ".-.......-......................................................-------------------------.",
-        ".-.......-.............................................................--........--.......",
-        ".-.......-.............................................................--........--.......",
-        ".-.......-.............................................................--........--.......",
-        ".-.......-.............................................................--........--.......",
-        ".-.......-.............................................................--........--.......",
-        ".-.......-.............................................................--........--.......",
-        ".-.......-.............................................................--.................",
-        ".-.......-.............................................................--.................",
-        ".-.......-.............................................................--.................",
-        ".-.......-.........-----...............................................--........--.......",
-        ".-.......-.........-----...............................................--........--.......",
-        ".-.................-------.............................................--........--.......",
-        ".-........p.......--------.........................-----.....----....----........--.......",
-        ".---------------------------------...----------------------------...-------......--------.",
-        ".---------------------------------...-----------------------------..-------......--------.",
-        ".----------------------------------...--.....---------------------....-----......--------.",
-        ".----------------------------------...........--------------------.....----......--------.",
-        ".----------------------------------............------------------...-------......--------.",
-        ".------------------------------------.........-------------------...--------....---------.",
-        ".----------------------------------------------------------------...--------....---------.",
-        ".----------------------------------------------------------------...-------.....---------.",
-        ".----------------------------------------------------------------..............----------.",
-        ".----------------------------------------------------------------..............----------.",
+        "..........................................................................................",
+        "..........................................................................................",
+        "..........................................................................................",
+        "..........................................................................................",
+        "..........................................................................................",
+        "..........................................................................................",
+        "..............................---.........................................................",
+        ".........--......------.......---...--............---......-----..........................",
+        ".....-............----..............--....----....---......-----..........................",
+        ".....-.............--.....................----....---......-----..........................",
+        ".....-........................................................--..........................",
+        ".....-.....-..................................................-...........................",
+        "...........-..............................................................................",
+        "-..........-..............................................................................",
+        "-......-...-....................................................................--........",
+        "-......-...-....................................................................--........",
+        "-......-........................................................................--........",
+        "--...............................................................................-........",
+        "--..........................................................................-....-........",
+        "-........---.....p.................................................----.....-.............",
+        "--------------------------------...................................----.....-.............",
+        "--------------------------------...................................----...................",
+        "--------------------------------...................................----...................",
+        "---------------------------------..................................----...................",
+        "---------------------------------.....----..........----..........-----...................",
+        "---------------------------------...................----..........-----..........-........",
+        "--------------------------------..............-.....----.........--------........-.....---",
+        "----...-------------------------....................-----..........----------....-.....---",
+        "---.....-----.....-------------.......................---...........--------...........---",
+        "--........-...........----................-..........----............-----.............---",
+        "--.....................-.............................---.............----...............--",
+        "--...................................................---.............----...............--",
+        "--.............---..................----...........------...........------........---...--",
+        "-----------------------------------------------------------------...-------......--------.",
+        "------------------------------------------------------------------..-------......--------.",
+        "-----------------------------------...--.....---------------------....-----......--------.",
+        "-----------------------------------...........--------------------.....----.....---------.",
+        "-----------------------------------............------------------...-------.....---------.",
+        "-------------------------------------....,....-------------------...--------....---------.",
+        "-----------------------------------------------------------------...--------....---------.",
+        "-----------------------------------------------------------------...-------.....---------.",
+        "-----------------------------------------------------------------......-.......----------.",
+        "-----------------------------------------------------------------..............----------.",
         ".----------------------------------------------------------------..............----------.",
         ".-----------------------------------------------------------------............-----------.",
         ".----------------------------------------------------------------------------------------.",
@@ -530,45 +805,62 @@ var loadLevels = function() {
         for (var j = 0; j < levels[level][i].length; j ++) {
             // associate specific keys to specific objects
             if (levels[level][i][j] === 'p') {
-                players.add(j * blockSize, i * blockSize, blockSize - 25, blockSize * 2);
+                players.add(j * blockSize, i * blockSize, blockSize - 25, blockSize * 2 - 5);
             } 
             if (levels[level][i][j] === 'e') {
                 enemys.add(j * blockSize, i * blockSize, blockSize, blockSize);
             } 
             if (levels[level][i][j] === '-') {
                 // select image relative to other blocks
-                if (levels[level][i][j + 1] === '-' && levels[level][i][j - 1] === '-' && levels[level][i - (i === 0 ? 0 : 1)][j] !== '-' && levels[level][i + (i === levels[level].length ? 0 : 1)][j] === '-') {
-                    grounds.add(j * blockSize, i * blockSize, blockSize - 10, blockSize, 1);
-                }else if (levels[level][i][j + 1] === '-' && levels[level][i][j - 1] === '-' && levels[level][i - (i === 0 ? 0 : 1)][j] !== '-' && levels[level][i + (i === levels[level].length ? 0 : 1)][j] !== '-') {
-                    grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 12);
-                }else if (levels[level][i][j + 1] === '-' && levels[level][i][j - 1] === '-' && levels[level][i - (i === 0 ? 0 : 1)][j] === '-' && levels[level][i + (i === levels[level].length - 1 ? 0 : 1)][j] !== '-') {
-                    grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 7);
-                }else if (levels[level][i][j - 1] !== '-' && levels[level][i][j + 1] === '-' && levels[level][i - (i === 0 ? 0 : 1)][j] !== '-' && levels[level][i + (i === levels[level].length ? 0 : 1)][j] === '-') {
+                if (levels[level][i][j - 1] !== '-' && levels[level][i][j + 1] === '-' && levels[level][i - (i === 0 ? 0 : 1)][j] !== '-' && levels[level][i + (i === levels[level].length ? 0 : 1)][j] === '-') {
                     grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 0);
+                }else if (levels[level][i][j + 1] === '-' && levels[level][i][j - 1] === '-' && levels[level][i - (i === 0 ? 0 : 1)][j] !== '-' && levels[level][i + (i === levels[level].length ? 0 : 1)][j] === '-') {
+                    grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 1);
                 }else if (levels[level][i][j - 1] === '-' && levels[level][i][j + 1] !== '-' && levels[level][i - (i === 0 ? 0 : 1)][j] !== '-' && levels[level][i + (i === levels[level].length ? 0 : 1)][j] === '-') {
                     grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 2);
-                }else if (levels[level][i][j - 1] !== '-' && levels[level][i][j + 1] !== '-' && levels[level][i - (i === 0 ? 0 : 1)][j] !== '-' && levels[level][i + (i === levels[level].length ? 0 : 1)][j] !== '-') {
-                    grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 11);
-                }else if (levels[level][i][j - 1] !== '-' && levels[level][i][j + 1] !== '-' && levels[level][i - (i === 0 ? 0 : 1)][j] === '-' && levels[level][i + (i === levels[level].length ? 0 : 1)][j] === '-') {
-                    grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 10);
-                }else if (levels[level][i][j + 1] !== '-' && levels[level][i][j - 1] !== '-' && levels[level][i - (i === 0 ? 0 : 1)][j] !== '-' && levels[level][i + (i === levels[level].length ? 0 : 1)][j] === '-') {
-                    grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 15);
-                }else if (levels[level][i][j + 1] !== '-' && levels[level][i][j - 1] === '-' && levels[level][i - (i === 0 ? 0 : 1)][j] === '-' && levels[level][i + (i === levels[level].length ? 0 : 1)][j] !== '-') {
-                    grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 8);
-                }else if (levels[level][i][j + 1] === '-' && levels[level][i][j - 1] !== '-' && levels[level][i - (i === 0 ? 0 : 1)][j] === '-' && levels[level][i + (i === levels[level].length ? 0 : 1)][j] !== '-') {
-                    grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 6);
                 }else if (levels[level][i][j + 1] === '-' && levels[level][i][j - 1] !== '-' && levels[level][i - (i === 0 ? 0 : 1)][j] === '-' && levels[level][i + (i === levels[level].length ? 0 : 1)][j] === '-') {
                     grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 3);
+                }else if (levels[level][i][j + 1] === '-' && levels[level][i][j - 1] === '-' && levels[level][i - (i === 0 ? 0 : 1)][j] === '-' && levels[level][i + (i === levels[level].length - 1 ? 0 : 1)][j] === '-') {
+                    grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 4);
                 }else if (levels[level][i][j + 1] !== '-' && levels[level][i][j - 1] === '-' && levels[level][i - (i === 0 ? 0 : 1)][j] === '-' && levels[level][i + (i === levels[level].length ? 0 : 1)][j] === '-') {
                     grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 5);
-                }else if (levels[level][i][j + 1] === '-' && levels[level][i][j - 1] === '-' && levels[level][i - (i === 0 ? 0 : 1)][j] === '-' && levels[level][i + (i === levels[level].length - 1 ? 0 : 1)][j] === '-') {
-                    grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 16);
+                }else if (levels[level][i][j + 1] === '-' && levels[level][i][j - 1] !== '-' && levels[level][i - (i === 0 ? 0 : 1)][j] === '-' && levels[level][i + (i === levels[level].length ? 0 : 1)][j] !== '-') {
+                    grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 6);
+                }else if (levels[level][i][j + 1] === '-' && levels[level][i][j - 1] === '-' && levels[level][i - (i === 0 ? 0 : 1)][j] === '-' && levels[level][i + (i === levels[level].length - 1 ? 0 : 1)][j] !== '-') {
+                    grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 7);
+                }else if (levels[level][i][j + 1] !== '-' && levels[level][i][j - 1] === '-' && levels[level][i - (i === 0 ? 0 : 1)][j] === '-' && levels[level][i + (i === levels[level].length ? 0 : 1)][j] !== '-') {
+                    grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 8);
+                }else if (levels[level][i][j + 1] !== '-' && levels[level][i][j - 1] !== '-' && levels[level][i - (i === 0 ? 0 : 1)][j] === '-' && levels[level][i + (i === levels[level].length ? 0 : 1)][j] !== '-') {
+                    grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 9);
+                }else if (levels[level][i][j - 1] !== '-' && levels[level][i][j + 1] !== '-' && levels[level][i - (i === 0 ? 0 : 1)][j] === '-' && levels[level][i + (i === levels[level].length ? 0 : 1)][j] === '-') {
+                    grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 10);
+                }else if (levels[level][i][j - 1] !== '-' && levels[level][i][j + 1] !== '-' && levels[level][i - (i === 0 ? 0 : 1)][j] !== '-' && levels[level][i + (i === levels[level].length ? 0 : 1)][j] !== '-') {
+                    grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 11);
+                }else if (levels[level][i][j + 1] === '-' && levels[level][i][j - 1] === '-' && levels[level][i - (i === 0 ? 0 : 1)][j] !== '-' && levels[level][i + (i === levels[level].length ? 0 : 1)][j] !== '-') {
+                    grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 12);
                 }else if (levels[level][i][j + 1] !== '-' && levels[level][i][j - 1] === '-' && levels[level][i - (i === 0 ? 0 : 1)][j] !== '-' && levels[level][i + (i === levels[level].length ? 0 : 1)][j] !== '-') {
                     grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 13);
                 }else if (levels[level][i][j + 1] === '-' && levels[level][i][j - 1] !== '-' && levels[level][i - (i === 0 ? 0 : 1)][j] !== '-' && levels[level][i + (i === levels[level].length ? 0 : 1)][j] !== '-') {
                     grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 14);
-                }else if (levels[level][i][j + 1] !== '-' && levels[level][i][j - 1] !== '-' && levels[level][i - (i === 0 ? 0 : 1)][j] === '-' && levels[level][i + (i === levels[level].length ? 0 : 1)][j] !== '-') {
-                    grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 9);
+                }else if (levels[level][i][j + 1] !== '-' && levels[level][i][j - 1] !== '-' && levels[level][i - (i === 0 ? 0 : 1)][j] !== '-' && levels[level][i + (i === levels[level].length ? 0 : 1)][j] === '-') {
+                    grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 15);
+                }
+
+                // internal corners
+                if (levels[level][i][j + 1] === '-' && levels[level][i][j - 1] === '-' && levels[level][i - (i === 0 ? 0 : 1)][j] === '-' && levels[level][i + (i === levels[level].length - 1 ? 0 : 1)][j] === '-') {
+                    if (levels[level][i - (i === 0 ? 0 : 1)][j - 1] === '.' && levels[level][i - (i === 0 ? 0 : 1)][j + 1] !== '.' && levels[level][i + (i === levels[level.length] ? 0 : 1)][j - 1] !== '.' && levels[level][i + (i === levels[level].length ? 0 : 1)][j + 1] !== '.') {
+                        grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 'left_corner');
+                    }else if (levels[level][i - (i === 0 ? 0 : 1)][j - 1] !== '.' && levels[level][i - (i === 0 ? 0 : 1)][j + 1] === '.' && levels[level][i + (i === levels[level.length] ? 0 : 1)][j - 1] !== '.' && levels[level][i + (i === levels[level].length ? 0 : 1)][j + 1] !== '.') {
+                        grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 'right_corner');
+                    }else if (levels[level][i - (i === 0 ? 0 : 1)][j - 1] === '.' && levels[level][i - (i === 0 ? 0 : 1)][j + 1] === '.' && levels[level][i + (i === levels[level.length] ? 0 : 1)][j - 1] === '.' && levels[level][i + (i === levels[level].length ? 0 : 1)][j + 1] === '.') {
+                        grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 'center_corner');
+                    }else if (levels[level][i - (i === 0 ? 0 : 1)][j - 1] !== '.' && levels[level][i - (i === 0 ? 0 : 1)][j + 1] !== '.' && levels[level][i + (i === levels[level.length] ? 0 : 1)][j - 1] !== '.' && levels[level][i + (i === levels[level].length ? 0 : 1)][j + 1] === '.') {
+                        grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 'lower_right_corner');
+                    }else if (levels[level][i - (i === 0 ? 0 : 1)][j - 1] !== '.' && levels[level][i - (i === 0 ? 0 : 1)][j + 1] !== '.' && levels[level][i + (i === levels[level.length] ? 0 : 1)][j - 1] === '.' && levels[level][i + (i === levels[level].length ? 0 : 1)][j + 1] !== '.') {
+                        grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 'lower_left_corner');
+                    }else if (levels[level][i - (i === 0 ? 0 : 1)][j - 1] !== '.' && levels[level][i - (i === 0 ? 0 : 1)][j + 1] !== '.' && levels[level][i + (i === levels[level.length] ? 0 : 1)][j - 1] === '.' && levels[level][i + (i === levels[level].length ? 0 : 1)][j + 1] === '.') {
+                        grounds.add(j * blockSize, i * blockSize, blockSize, blockSize, 'bottom_double_corner');
+                    }
                 }
             }
         }
@@ -577,7 +869,6 @@ var loadLevels = function() {
 
 // create all game objects
 function createObjects() {
-    grasses.create();
     grounds.create();
     enemys.create();
     players.create();
@@ -604,7 +895,7 @@ function draw() {
         loadLevels();
     }
 
-    //remove dead enemies
+    // remove dead enemies
     for (var i = 0; i < enemys.length; i ++) {
         if (enemys.dead) {
             enemys.splice(i, 1);
@@ -616,7 +907,7 @@ function draw() {
     var player = players[0]; // save variable that selects first player spawned
 
     camX = -player.x + canvas.width / 2; // set camera x
-    camY = -player.y + canvas.height / 2 + 150; // set camera y
+    camY = -player.y + canvas.height / 2 + 50; // set camera y
 
     // CONSTRAIN CAMERA
 
@@ -659,6 +950,14 @@ function draw() {
 
     createObjects(); // call create obj's function
 
+    // draw and remove fx particles
+    for (var i = 0; i < effects.length; i ++) {
+        effects[i].draw();
+        if (effects[i].dead) {
+            effects.splice(i, 1);
+        }
+    }
+
     c.restore(); // reset saved canvas matrix
 
     // fake frame rate        
@@ -666,7 +965,7 @@ function draw() {
 
     requestAnimationFrame(draw);
 }
-
+ 
 draw(); // call draw loop
 
 // ************************* EVENT LISTENERS *************************
